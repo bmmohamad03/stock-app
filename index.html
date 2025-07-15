@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <link rel="icon" href="icon-192.png" type="image/png">
-  <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="manifest" href="manifest.json">
- <meta name="theme-color" content="#2563eb" />
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Sortie de Stock – CHIMIO TECHNIC</title>
+  <link rel="icon" href="icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#2563eb" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
 </head>
@@ -19,12 +19,13 @@
     <h2 class="text-xl font-bold text-gray-800 text-center mb-4">Sortie de Stock</h2>
 
     <div id="spinner" class="hidden text-center text-sm text-gray-500 mb-2">⏳ Envoi en cours...</div>
+    <div id="syncPending" class="hidden text-center text-orange-600 text-sm mt-2">🔁 Sorties à synchroniser...</div>
+
     <form id="formSortie" class="space-y-4">
-      <!-- Barre de recherche avec datalist -->
       <div>
-        <label for="codeProduit" class="block text-sm font-semibold text-gray-700"><i class="fas fa-box"></i> Code Produit</label>
-        <input list="listeProduits" id="codeProduit" required class="w-full border rounded-md p-2" />
-        <datalist id="listeProduits"></datalist>
+        <label for="codeProduitInput" class="block text-sm font-semibold text-gray-700">🔍 Code Produit</label>
+        <input list="produitList" id="codeProduitInput" name="codeProduit" required class="w-full border rounded-md p-2" placeholder="Rechercher ou taper un code..." />
+        <datalist id="produitList"></datalist>
       </div>
 
       <div>
@@ -42,8 +43,7 @@
       <div>
         <label for="motif" class="block text-sm font-semibold text-gray-700"><i class="fas fa-edit"></i> Motif</label>
         <select id="motif" required class="w-full border rounded-md p-2">
-          <option value="">-- Sélectionner un motif --</option>
-          <option value="Vente">Vente</option>
+          <option value="Vente" selected>Vente</option>
           <option value="Casse">Casse</option>
           <option value="Test">Test</option>
           <option value="Autre">Autre</option>
@@ -60,41 +60,27 @@
 
   <script>
     const produits = ["J005","J001","J002","J003","PR001","PR002","PR003","L006","L0061","L0062","N012","N013","N014","NPC001","NPP002","NPG003","NPM004","N006","N009","M001","M002","M004","REX005","M007"];
-    const dataList = document.getElementById("listeProduits");
-    const codeProduitInput = document.getElementById("codeProduit");
-    const lastEntry = document.getElementById("lastEntry");
-    const spinner = document.getElementById("spinner");
-    const submitBtn = document.getElementById("submitBtn");
-    const historique = document.getElementById("historique");
-    const motifSelect = document.getElementById("motif");
-
-    // Générer les suggestions dynamiques
+    const datalist = document.getElementById("produitList");
+    const codeInput = document.getElementById("codeProduitInput");
     produits.forEach(code => {
-      const opt = document.createElement("option");
-      opt.value = code;
-      dataList.appendChild(opt);
+      const option = document.createElement("option");
+      option.value = code;
+      datalist.appendChild(option);
     });
 
-    // Pré-sélection automatique du motif sur "Vente"
-    motifSelect.value = "Vente";
-
-    // Sauvegarde locale du nom de l'opérateur
+    const form = document.getElementById("formSortie");
+    const spinner = document.getElementById("spinner");
+    const syncPending = document.getElementById("syncPending");
+    const confirmationMsg = document.getElementById("confirmationMsg");
+    const lastEntry = document.getElementById("lastEntry");
+    const historique = document.getElementById("historique");
+    const motifSelect = document.getElementById("motif");
     const operateurInput = document.getElementById("operateur");
+
     operateurInput.value = localStorage.getItem("operateur") || "";
     operateurInput.addEventListener("input", () => {
       localStorage.setItem("operateur", operateurInput.value);
     });
-
-    let envoiEnCours = false;
-    let lastSent = null;
-
-    function enregistrerHistoriqueLocally(mouvement) {
-      let historiqueStock = JSON.parse(localStorage.getItem("historiqueStock") || "[]");
-      historiqueStock.unshift(mouvement);
-      historiqueStock = historiqueStock.slice(0, 5);
-      localStorage.setItem("historiqueStock", JSON.stringify(historiqueStock));
-      afficherHistorique(historiqueStock);
-    }
 
     function afficherHistorique(data) {
       if (!data || data.length === 0) return;
@@ -110,44 +96,57 @@
       historique.appendChild(table);
     }
 
-    afficherHistorique(JSON.parse(localStorage.getItem("historiqueStock") || "[]"));
-   function sauvegarderLocal(data) {
-  const sortiesEnAttente = JSON.parse(localStorage.getItem("sortiesEnAttente")) || [];
-  sortiesEnAttente.push(data);
-  localStorage.setItem("sortiesEnAttente", JSON.stringify(sortiesEnAttente));
+    function enregistrerHistoriqueLocally(mouvement) {
+      let historiqueStock = JSON.parse(localStorage.getItem("historiqueStock") || "[]");
+      historiqueStock.unshift(mouvement);
+      historiqueStock = historiqueStock.slice(0, 5);
+      localStorage.setItem("historiqueStock", JSON.stringify(historiqueStock));
+      afficherHistorique(historiqueStock);
     }
 
-    document.getElementById("formSortie").addEventListener("submit", function(event) {
-      event.preventDefault();
-      if (envoiEnCours) return;
+    function verifierSyncPending() {
+      const sorties = JSON.parse(localStorage.getItem("sortiesEnAttente") || "[]");
+      if (sorties.length > 0) {
+        syncPending.classList.remove("hidden");
+      } else {
+        syncPending.classList.add("hidden");
+      }
+    }
 
+    function sauvegarderLocal(data) {
+      const sortiesEnAttente = JSON.parse(localStorage.getItem("sortiesEnAttente") || "[]");
+      sortiesEnAttente.push(data);
+      localStorage.setItem("sortiesEnAttente", JSON.stringify(sortiesEnAttente));
+      verifierSyncPending();
+    }
+
+    function synchroniserSorties() {
+      const sorties = JSON.parse(localStorage.getItem("sortiesEnAttente") || "[]");
+      if (sorties.length === 0) return;
+      const sortie = sorties[0];
+      fetch("/sortie_stock.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(sortie)
+      })
+      .then(res => {
+        if (!res.ok) throw new Error();
+        sorties.shift();
+        localStorage.setItem("sortiesEnAttente", JSON.stringify(sorties));
+        verifierSyncPending();
+        enregistrerHistoriqueLocally(sortie);
+        synchroniserSorties();
+      })
+      .catch(() => console.log("⏳ En attente de réseau pour envoyer la sortie"));
+    }
+
+    form.addEventListener("submit", function(event) {
+      event.preventDefault();
+      spinner.classList.remove("hidden");
+      const codeProduit = codeInput.value.trim();
       const quantite = parseInt(document.getElementById("quantite").value);
       const operateur = operateurInput.value.trim();
-      const pattern = /^[a-zA-ZÀ-ÿ\s\-]+$/;
-      const codeProduit = codeProduitInput.value;
       const motif = motifSelect.value;
-      const now = Date.now();
-
-      document.getElementById("errorQuantite").textContent = "";
-      document.getElementById("errorOperateur").textContent = "";
-
-      if (quantite < 1) {
-        document.getElementById("errorQuantite").textContent = "Quantité invalide.";
-        return;
-      }
-      if (!pattern.test(operateur)) {
-        document.getElementById("errorOperateur").textContent = "Nom invalide (lettres et espaces uniquement).";
-        return;
-      }
-      if (lastSent && lastSent.codeProduit === codeProduit && lastSent.operateur === operateur && (now - lastSent.timestamp < 30000)) {
-        document.getElementById("confirmationMsg").textContent = "⚠️ Soumission identique récente ignorée.";
-        return;
-      }
-
-      spinner.classList.remove("hidden");
-      submitBtn.disabled = true;
-      envoiEnCours = true;
-
       const dateLocale = new Date().toLocaleString();
       const data = {
         codeProduit,
@@ -165,56 +164,32 @@
       })
       .then(res => {
         if (!res.ok) throw new Error();
-        return res.text();
-      })
-      .then(() => {
-        document.getElementById("confirmationMsg").textContent = "✅ Sortie enregistrée le " + dateLocale;
+        confirmationMsg.textContent = "✅ Sortie enregistrée le " + dateLocale;
         lastEntry.innerHTML = `<strong>Dernier mouvement :</strong><br>Produit : ${codeProduit}<br>Quantité : ${quantite}<br>Opérateur : ${operateur}<br>Motif : ${motif}<br>Heure : ${dateLocale}`;
-        lastSent = { codeProduit, operateur, timestamp: now };
         enregistrerHistoriqueLocally(data);
-
-        document.getElementById("formSortie").reset();
-        motifSelect.value = "Vente"; // Remettre par défaut après reset
+        form.reset();
+        motifSelect.value = "Vente";
         operateurInput.value = operateur;
       })
       .catch(() => {
-  sauvegarderLocal(data);
-  alert("📴 Pas de réseau. Mouvement sauvegardé localement.");
-})
-
+        sauvegarderLocal(data);
+        alert("📴 Pas de réseau. Mouvement sauvegardé localement.");
+      })
       .finally(() => {
         spinner.classList.add("hidden");
-        submitBtn.disabled = false;
-        envoiEnCours = false;
       });
     });
 
     setInterval(() => {
-      const pending = JSON.parse(localStorage.getItem("pendingStock") || "[]");
-      if (pending.length === 0) return;
-      fetch("/sortie_stock.php", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(pending[0])
-      })
-      .then(res => {
-        if (!res.ok) throw new Error();
-        pending.shift();
-        localStorage.setItem("pendingStock", JSON.stringify(pending));
-        enregistrerHistoriqueLocally(pending[0]);
-      })
-      .catch(() => {});
+      if (navigator.onLine) {
+        synchroniserSorties();
+      }
     }, 10000);
-  </script>
-  <script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./service-worker.js')
-        .then(reg => console.log("✅ Service Worker enregistré", reg.scope))
-        .catch(err => console.error("❌ Erreur Service Worker", err));
-    });
-  }
-</script>
 
+    window.addEventListener("load", () => {
+      verifierSyncPending();
+      afficherHistorique(JSON.parse(localStorage.getItem("historiqueStock") || "[]"));
+    });
+  </script>
 </body>
 </html>
