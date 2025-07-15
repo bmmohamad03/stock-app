@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <link rel="icon" href="icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="manifest" href="manifest.json">
+ <meta name="theme-color" content="#2563eb" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sortie de Stock – CHIMIO TECHNIC</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+</head>
+<body class="bg-gradient-to-br from-blue-100 to-white min-h-screen flex items-center justify-center">
+  <div class="bg-white shadow-xl rounded-xl p-6 w-full max-w-md">
+    <div class="text-center mb-4">
+      <img src="chimio_technic_logo.png" alt="Logo Chimio Technic" class="mx-auto w-32">
+    </div>
+    <h2 class="text-xl font-bold text-gray-800 text-center mb-4">Sortie de Stock</h2>
+
+    <div id="spinner" class="hidden text-center text-sm text-gray-500 mb-2">⏳ Envoi en cours...</div>
+    <form id="formSortie" class="space-y-4">
+      <!-- Barre de recherche avec datalist -->
+      <div>
+        <label for="codeProduit" class="block text-sm font-semibold text-gray-700"><i class="fas fa-box"></i> Code Produit</label>
+        <input list="listeProduits" id="codeProduit" required class="w-full border rounded-md p-2" />
+        <datalist id="listeProduits"></datalist>
+      </div>
+
+      <div>
+        <label for="quantite" class="block text-sm font-semibold text-gray-700"><i class="fas fa-sort-numeric-up"></i> Quantité</label>
+        <input type="number" id="quantite" min="1" required class="w-full border rounded-md p-2" />
+        <div id="errorQuantite" class="text-red-500 text-sm"></div>
+      </div>
+
+      <div>
+        <label for="operateur" class="block text-sm font-semibold text-gray-700"><i class="fas fa-user"></i> Nom de l’opérateur</label>
+        <input type="text" id="operateur" required pattern="^[a-zA-ZÀ-ÿ\s\-]+$" class="w-full border rounded-md p-2" />
+        <div id="errorOperateur" class="text-red-500 text-sm"></div>
+      </div>
+
+      <div>
+        <label for="motif" class="block text-sm font-semibold text-gray-700"><i class="fas fa-edit"></i> Motif</label>
+        <select id="motif" required class="w-full border rounded-md p-2">
+          <option value="">-- Sélectionner un motif --</option>
+          <option value="Vente">Vente</option>
+          <option value="Casse">Casse</option>
+          <option value="Test">Test</option>
+          <option value="Autre">Autre</option>
+        </select>
+      </div>
+
+      <button type="submit" id="submitBtn" class="w-full bg-blue-600 text-white font-semibold py-2 rounded hover:bg-blue-700">Valider la sortie</button>
+    </form>
+
+    <div id="confirmationMsg" class="mt-4 text-green-600 font-medium text-center"></div>
+    <div id="lastEntry" class="mt-4 text-sm text-gray-700"></div>
+    <div id="historique" class="mt-4 text-sm text-gray-700"></div>
+  </div>
+
+  <script>
+    const produits = ["J005","J001","J002","J003","PR001","PR002","PR003","L006","L0061","L0062","N012","N013","N014","NPC001","NPP002","NPG003","NPM004","N006","N009","M001","M002","M004","REX005","M007"];
+    const dataList = document.getElementById("listeProduits");
+    const codeProduitInput = document.getElementById("codeProduit");
+    const lastEntry = document.getElementById("lastEntry");
+    const spinner = document.getElementById("spinner");
+    const submitBtn = document.getElementById("submitBtn");
+    const historique = document.getElementById("historique");
+    const motifSelect = document.getElementById("motif");
+
+    // Générer les suggestions dynamiques
+    produits.forEach(code => {
+      const opt = document.createElement("option");
+      opt.value = code;
+      dataList.appendChild(opt);
+    });
+
+    // Pré-sélection automatique du motif sur "Vente"
+    motifSelect.value = "Vente";
+
+    // Sauvegarde locale du nom de l'opérateur
+    const operateurInput = document.getElementById("operateur");
+    operateurInput.value = localStorage.getItem("operateur") || "";
+    operateurInput.addEventListener("input", () => {
+      localStorage.setItem("operateur", operateurInput.value);
+    });
+
+    let envoiEnCours = false;
+    let lastSent = null;
+
+    function enregistrerHistoriqueLocally(mouvement) {
+      let historiqueStock = JSON.parse(localStorage.getItem("historiqueStock") || "[]");
+      historiqueStock.unshift(mouvement);
+      historiqueStock = historiqueStock.slice(0, 5);
+      localStorage.setItem("historiqueStock", JSON.stringify(historiqueStock));
+      afficherHistorique(historiqueStock);
+    }
+
+    function afficherHistorique(data) {
+      if (!data || data.length === 0) return;
+      historique.innerHTML = `<h3 class="font-semibold mb-1">🗂️ 5 derniers mouvements :</h3>`;
+      const table = document.createElement("table");
+      table.className = "w-full text-sm border-collapse";
+      table.innerHTML = `
+        <thead><tr class="bg-gray-100"><th>Produit</th><th>Qté</th><th>Opérateur</th><th>Motif</th><th>Heure</th></tr></thead>
+        <tbody>
+          ${data.map(m => `<tr><td>${m.codeProduit}</td><td>${m.quantite}</td><td>${m.operateur}</td><td>${m.motif}</td><td>${m.date}</td></tr>`).join("")}
+        </tbody>
+      `;
+      historique.appendChild(table);
+    }
+
+    afficherHistorique(JSON.parse(localStorage.getItem("historiqueStock") || "[]"));
+
+    document.getElementById("formSortie").addEventListener("submit", function(event) {
+      event.preventDefault();
+      if (envoiEnCours) return;
+
+      const quantite = parseInt(document.getElementById("quantite").value);
+      const operateur = operateurInput.value.trim();
+      const pattern = /^[a-zA-ZÀ-ÿ\s\-]+$/;
+      const codeProduit = codeProduitInput.value;
+      const motif = motifSelect.value;
+      const now = Date.now();
+
+      document.getElementById("errorQuantite").textContent = "";
+      document.getElementById("errorOperateur").textContent = "";
+
+      if (quantite < 1) {
+        document.getElementById("errorQuantite").textContent = "Quantité invalide.";
+        return;
+      }
+      if (!pattern.test(operateur)) {
+        document.getElementById("errorOperateur").textContent = "Nom invalide (lettres et espaces uniquement).";
+        return;
+      }
+      if (lastSent && lastSent.codeProduit === codeProduit && lastSent.operateur === operateur && (now - lastSent.timestamp < 30000)) {
+        document.getElementById("confirmationMsg").textContent = "⚠️ Soumission identique récente ignorée.";
+        return;
+      }
+
+      spinner.classList.remove("hidden");
+      submitBtn.disabled = true;
+      envoiEnCours = true;
+
+      const dateLocale = new Date().toLocaleString();
+      const data = {
+        codeProduit,
+        quantite,
+        operateur,
+        motif,
+        dateHeure: new Date().toISOString(),
+        date: dateLocale
+      };
+
+      fetch("/sortie_stock.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+      })
+      .then(res => {
+        if (!res.ok) throw new Error();
+        return res.text();
+      })
+      .then(() => {
+        document.getElementById("confirmationMsg").textContent = "✅ Sortie enregistrée le " + dateLocale;
+        lastEntry.innerHTML = `<strong>Dernier mouvement :</strong><br>Produit : ${codeProduit}<br>Quantité : ${quantite}<br>Opérateur : ${operateur}<br>Motif : ${motif}<br>Heure : ${dateLocale}`;
+        lastSent = { codeProduit, operateur, timestamp: now };
+        enregistrerHistoriqueLocally(data);
+
+        document.getElementById("formSortie").reset();
+        motifSelect.value = "Vente"; // Remettre par défaut après reset
+        operateurInput.value = operateur;
+      })
+      .catch(() => {
+        let pending = JSON.parse(localStorage.getItem("pendingStock") || "[]");
+        pending.push(data);
+        localStorage.setItem("pendingStock", JSON.stringify(pending));
+        alert("📴 Pas de réseau. Mouvement sauvegardé localement.");
+      })
+      .finally(() => {
+        spinner.classList.add("hidden");
+        submitBtn.disabled = false;
+        envoiEnCours = false;
+      });
+    });
+
+    setInterval(() => {
+      const pending = JSON.parse(localStorage.getItem("pendingStock") || "[]");
+      if (pending.length === 0) return;
+      fetch("/sortie_stock.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(pending[0])
+      })
+      .then(res => {
+        if (!res.ok) throw new Error();
+        pending.shift();
+        localStorage.setItem("pendingStock", JSON.stringify(pending));
+        enregistrerHistoriqueLocally(pending[0]);
+      })
+      .catch(() => {});
+    }, 10000);
+  </script>
+  <script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./service-worker.js')
+        .then(reg => console.log("✅ Service Worker enregistré", reg.scope))
+        .catch(err => console.error("❌ Erreur Service Worker", err));
+    });
+  }
+</script>
+
+</body>
+</html>
