@@ -111,6 +111,11 @@
     }
 
     afficherHistorique(JSON.parse(localStorage.getItem("historiqueStock") || "[]"));
+   function sauvegarderLocal(data) {
+  const sortiesEnAttente = JSON.parse(localStorage.getItem("sortiesEnAttente")) || [];
+  sortiesEnAttente.push(data);
+  localStorage.setItem("sortiesEnAttente", JSON.stringify(sortiesEnAttente));
+    }
 
     document.getElementById("formSortie").addEventListener("submit", function(event) {
       event.preventDefault();
@@ -173,11 +178,10 @@
         operateurInput.value = operateur;
       })
       .catch(() => {
-        let pending = JSON.parse(localStorage.getItem("pendingStock") || "[]");
-        pending.push(data);
-        localStorage.setItem("pendingStock", JSON.stringify(pending));
-        alert("📴 Pas de réseau. Mouvement sauvegardé localement.");
-      })
+  sauvegarderLocal(data);
+  alert("📴 Pas de réseau. Mouvement sauvegardé localement.");
+})
+
       .finally(() => {
         spinner.classList.add("hidden");
         submitBtn.disabled = false;
