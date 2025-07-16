@@ -124,7 +124,7 @@
       const sorties = JSON.parse(localStorage.getItem("sortiesEnAttente") || "[]");
       if (sorties.length === 0) return;
       const sortie = sorties[0];
-      fetch("http://127.0.0.1:5001/sortie", {
+      https://api-stock-sortie.onrender.com/enregistrer_sortie
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(sortie)
