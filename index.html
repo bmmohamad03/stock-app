@@ -157,7 +157,7 @@
         date: dateLocale
       };
 
-      fetch("/sortie_stock.php", {
+      fetch("https://api-stock-sortie.onrender.com/enregistrer_sortie", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data)
