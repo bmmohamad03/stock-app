@@ -157,11 +157,12 @@
         date: dateLocale
       };
 
-      fetch("https://api-stock-sortie.onrender.com/enregistrer_sortie", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data)
-      })
+   fetch("https://api-stock-sortie.onrender.com/enregistrer_sortie", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(data)
+})
+
       .then(res => {
         if (!res.ok) throw new Error();
         confirmationMsg.textContent = "✅ Sortie enregistrée le " + dateLocale;
